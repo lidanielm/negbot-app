@@ -18,3 +18,9 @@ Propose an offer: "How about {offer}?"
 - Response: "The average is [average of all offers]"
 Restart negotiation: "Restart negotiation"
 - Response: "Negotiation restarted."
+
+## How to run:
+Run the following command in the terminal to deploy the webhook:
+```
+firebase deploy --only functions,hosting
+```
