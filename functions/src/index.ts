@@ -1,7 +1,5 @@
 import * as functions from 'firebase-functions';
 import { getFirestore } from 'firebase-admin/firestore';
-// import { Firestore } from 'firebase/firestore';
-// import { doc, setDoc } from 'firebase/firestore';
 import firebase from 'firebase-admin';
 import admin = require('firebase-admin');
 
@@ -10,14 +8,9 @@ admin.initializeApp({
     databaseURL: "https://negotiation-chatbot-app.firebaseio.com"
 });
 
-const sessionId = Date.now().toString();
-
-// const app = initializeApp(firebaseConfig);
-
 const db = getFirestore();
 
-let offerList: number[] = [];
-offerList.push(5);
+let sessionId = Date.now().toString();
 
 const initializeSession = async () => {
     const offerRef = db.collection(sessionId).doc('offers');
@@ -27,6 +20,8 @@ const initializeSession = async () => {
     await nameRef.set({ name: "" });
 }
 
+// Initialize collection in Firestore
+// Id of the collection is the current timestamp
 initializeSession();
 
 exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, res) => {
@@ -36,43 +31,25 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, re
     const intent = req.body.queryResult.intent.displayName;
     const params = req.body.queryResult.parameters;
 
-    let jsonResponse = {
-        fulfillment_messages: [
-            {
-                text: {
-                    text: ["no intents detected"],
-                },
-            },
-        ]
-    };
+    // Handle the different intents
     if (intent === "GetName") {
         const nameRef = db.collection(sessionId).doc('name');
 
-        try {
-            await nameRef.get().then((doc) => {
-                let name: string = doc.data()?.name;
-                jsonResponse = {
-                    fulfillment_messages: [
-                        {
-                            text: {
-                                text: [`Your name is ${name}.`],
-                            },
+        // Retrieve name from Firestore
+        await nameRef.get().then((doc) => {
+            let name: string = doc.data()?.name;
+            res.send({
+                fulfillment_messages: [
+                    {
+                        text: {
+                            text: [`Your name is ${name}.`],
                         },
-                    ],
-                };
-            }).catch((error) => {
-                jsonResponse = {
-                    fulfillment_messages: [
-                        {
-                            text: {
-                                text: [`Error getting document: ${error}`],
-                            },
-                        },
-                    ],
-                };
+                    },
+                ],
             });
-        } catch (error) {
-            jsonResponse = {
+            return;
+        }).catch((error) => {
+            res.send({
                 fulfillment_messages: [
                     {
                         text: {
@@ -80,29 +57,31 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, re
                         },
                     },
                 ],
-            };
-        }
+            });
+        });
     } else if (intent === "SetName") {
         const name = params["given-name"];
 
         const nameRef = db.collection(sessionId).doc('name');
 
+        // Update name in Firestore
         nameRef.set({ name: name });
 
-        jsonResponse = {
+        res.send({
             fulfillment_messages: [
                 {
                     text: {
-                        text: [`Your name is ${name}.`],
+                        text: [`Hello, ${name}.`],
                     },
                 },
             ],
-        };
+        });
     } else if (intent === "Offer") {
         const offer = params.offer;
 
+        // Check if offer is within the range
         if (offer < 7000 || offer > 20000) {
-            jsonResponse = {
+            res.send({
                 fulfillment_messages: [
                     {
                         text: {
@@ -110,7 +89,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, re
                         },
                     },
                 ],
-            };
+            });
         } else {
             const offerRef = db.collection(sessionId).doc('offers');
 
@@ -124,7 +103,7 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, re
 
                 const offers: number[] = data.offers;
                 if (offers.length === 0) {
-                    jsonResponse = {
+                    res.send({
                         fulfillment_messages: [
                             {
                                 text: {
@@ -132,35 +111,66 @@ exports.dialogflowFirebaseFulfillment = functions.https.onRequest(async (req, re
                                 },
                             },
                         ],
-                    };
+                    });
                     return;
                 }
 
                 const average = offers.reduce((a: number, b: number) => a + b) / offers.length;
 
-                jsonResponse = {
-                    fulfillment_messages: [
-                        {
-                            text: {
-                                text: [`The average offer is ${average}`],
+                // Format average to 2 decimal places if it is a float
+                if (Number.isInteger(average)) {
+                    res.send({
+                        fulfillment_messages: [
+                            {
+                                text: {
+                                    text: [`The average offer is ${average}`],
+                                },
                             },
-                        },
-                    ],
-                };
+                        ],
+                    });
+                } else {
+                    res.send({
+                        fulfillment_messages: [
+                            {
+                                text: {
+                                    text: [`The average offer is ${average.toFixed(2)}`],
+                                },
+                            },
+                        ],
+                    });
+                }
+
+
             });
         }
-    } else {
-        jsonResponse = {
+    } else if (intent === "RestartNegotiation") {
+        // Initialize collection in Firestore
+        // Id of the collection is the current timestamp
+        sessionId = Date.now().toString();
+
+        initializeSession();
+
+        res.send({
+            fulfillment_messages: [
+                {
+                    text: {
+                        text: [`Negotiation has been restarted.`],
+                    },
+                },
+            ],
+        });
+    }
+    else {
+        res.send({
             fulfillment_messages: [
                 {
                     text: {
                         text: [
-                            `There are no fulfillment responses defined for "${intent}"" tag`,
+                            `There are no fulfillment responses defined for "${intent}" tag`,
                         ],
                     },
                 },
             ],
-        };
+        });
     }
-    res.send(jsonResponse);
 });
