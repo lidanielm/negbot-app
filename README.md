@@ -1,5 +1,7 @@
 # Application for Negotiation Chatbot
 
+Hi! I'm Daniel Li, a sophomore studying computer science. This is my submission for the application for the Negotiation Chatbot developer position.
+
 This chatbot satisfies all the necessary requirements:
 - stores a list of offers from the user in Firebase
 - stores user's name in Firebase
